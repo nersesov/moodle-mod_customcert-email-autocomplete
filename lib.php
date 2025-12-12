@@ -269,10 +269,12 @@ function customcert_pluginfile($course, $cm, $context, $filearea, $args, $forced
  */
 function customcert_supports($feature) {
     switch ($feature) {
+        case FEATURE_GROUPS:
         case FEATURE_GROUPINGS:
         case FEATURE_MOD_INTRO:
         case FEATURE_SHOW_DESCRIPTION:
         case FEATURE_COMPLETION_TRACKS_VIEWS:
+        case FEATURE_COMPLETION_HAS_RULES:
         case FEATURE_BACKUP_MOODLE2:
         case FEATURE_GROUPS:
             return true;
@@ -306,6 +308,36 @@ function customcert_get_post_actions() {
  */
 function customcert_cron() {
     return true;
+}
+
+/**
+ * Obtains the automatic completion state for this customcert based on any conditions
+ * in customcert settings.
+ *
+ * @param object $course Course
+ * @param object $cm Course-module
+ * @param int $userid User ID
+ * @param bool $type Type of comparison (or/and; can be used as return value if no conditions)
+ * @return bool True if completed, false if not, $type if conditions not set.
+ */
+function customcert_get_completion_state($course, $cm, $userid, $type) {
+    global $DB;
+
+    // Get customcert details.
+    $customcert = $DB->get_record('customcert', ['id' => $cm->instance], '*', MUST_EXIST);
+
+    // If completion option is enabled, check if the user has been issued a certificate.
+    if ($customcert->completionissued) {
+        // Also verify that email to students is enabled (completion requirement)
+        if ($customcert->emailstudents || get_config('customcert', 'emailstudents')) {
+            return $DB->record_exists('customcert_issues', ['customcertid' => $customcert->id, 'userid' => $userid]);
+        }
+        // If email is not enabled, completion rule should not be active
+        return $type;
+    } else {
+        // Completion option is not enabled so just return $type.
+        return $type;
+    }
 }
 
 /**
